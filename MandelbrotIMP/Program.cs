@@ -9,7 +9,6 @@ namespace MandelbrotIMP
 {
     class Program : Form
     {
-        // dit is een github test
         PictureBox pictureBox;
         Bitmap buffer;
 
