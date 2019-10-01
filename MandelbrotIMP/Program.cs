@@ -12,10 +12,14 @@ namespace MandelbrotIMP
         PictureBox pictureBox;
         Bitmap buffer;
 
+        // Waarom wel voor TextBox, maar niet voor Labels en Buttons? 
         TextBox inputX, inputY, inputScale, inputMax;
+
+        ComboBox coordinatePreset, colorPreset;
 
         Bitmap palette = new Bitmap("gradient.png");
         Bitmap gradient;
+        // double x = 0, y = 0, scale = 1; 
         double x = -1.0079296875, y = 0.3112109375, scale = 1.953125E-3;
         int maxIterations = 200;
         int size = 500;
@@ -29,8 +33,7 @@ namespace MandelbrotIMP
             ResizeEnd += OnResize;
             MaximizeBox = false;
             
-
-
+            
             FlowLayoutPanel panel = new FlowLayoutPanel()
             {
                 FlowDirection = FlowDirection.TopDown,
@@ -61,7 +64,7 @@ namespace MandelbrotIMP
                 Size = new Size(30, 14),
             };
 
-            // Button
+            // Buttons
             Button buttonOk = new Button()
             {
                 Text = "OK",
@@ -76,7 +79,7 @@ namespace MandelbrotIMP
             };
             buttonReset.Click += ResetValues;
 
-            // 
+            // Textbox
             inputX = new TextBox();
             inputX.KeyDown += PressedKey;
 
@@ -89,20 +92,40 @@ namespace MandelbrotIMP
             inputMax = new TextBox();
             inputMax.KeyDown += PressedKey;
 
-            panel.Controls.Add(labelX);
-            panel.Controls.Add(inputX);
-            panel.Controls.Add(labelY);
-            panel.Controls.Add(inputY);
+            // Combobox
+            coordinatePreset = new ComboBox()
+            {
+                DropDownWidth = 280,
+                Size = new Size(40, 10),
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                SelectedIndex = 0,
+                DataSource = new string[] { "Basis", "coo1", "Coo2"}
+            };
+            coordinatePreset.SelectedIndexChanged += CoordinatePresetSelected;
 
-            panel.Controls.Add(labelScale);
-            panel.Controls.Add(inputScale);
+            colorPreset = new ComboBox()
+            {
+                DropDownWidth = 280,
+                Size = new Size(40, 10),
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                SelectedIndex = 0,
+                DataSource = new string[] { "Kleur 1", "Kleur 2" }
+            };
+            colorPreset.SelectedIndexChanged += ColorPresetSelected;
 
-            panel.Controls.Add(labelMax);
-            panel.Controls.Add(inputMax);
+            // Add controls to panel
+            // Heb dit iets opgeschoont
 
-            panel.Controls.Add(buttonOk);
-            panel.Controls.Add(buttonReset);
-
+            panel.Controls.AddRange(new Control[] {labelX,
+                inputX,
+                labelY,
+                inputY,
+                labelScale,
+                inputScale,
+                labelMax,
+                inputMax,
+                buttonOk,
+                buttonReset});
 
             pictureBox = new PictureBox()
             {
@@ -115,6 +138,41 @@ namespace MandelbrotIMP
             Controls.Add(pictureBox);
 
             Kleurtjes();
+
+            ReloadTextbox();
+            ShowMandel();
+        }
+
+        private void CoordinatePresetSelected(object sender, EventArgs e)
+        {
+            // coordinatePreset
+            // Wil liever een struct, waar naam, x, y en scale in staat die dan boven aan gedeclareerd kunnen worden.
+            // Misschien opslan als XML bestand ofzo? 
+            switch (coordinatePreset.SelectedIndex)
+            {
+                case 0:
+                    x = 0;
+                    y = 0;
+                    scale = 1;
+                    break;
+                case 1:
+                    x = -1.0079296875;
+                    y = 0.3112109375;
+                    scale = 1.953125E-3;
+                    break;
+                case 2:
+                    x = -0.1578125;
+                    y = 1.0328125;
+                    scale = 1.5625E-4;
+                    break;
+            }
+            ReloadTextbox();
+            ShowMandel();
+        }
+
+        private void ColorPresetSelected(object sender, EventArgs e)
+        {
+            // colorPreset
 
             ReloadTextbox();
             ShowMandel();
@@ -149,7 +207,7 @@ namespace MandelbrotIMP
             {
                 this.x = x;
                 this.y = y;
-                Console.WriteLine(x + " + "+ y);
+                // Console.WriteLine(x + " + "+ y);
             }
 
             if (double.TryParse(inputScale.Text, out double scale))
@@ -162,16 +220,18 @@ namespace MandelbrotIMP
             ShowMandel();
         }
 
-        private void PressedKey(object o, KeyEventArgs ea)
+        private void PressedKey(object sender, KeyEventArgs e)
         {
-            if (ea.KeyCode == Keys.Enter)
+            if (e.KeyCode == Keys.Enter)
             {
                 OkClick(null, null);
+
+                // Moet dit hier ook staan als het ook vanuit OKClick wordt aangeroepen? 
                 ShowMandel();
             }
         }
 
-        private void ResetValues(object o, EventArgs ea)
+        private void ResetValues(object sender, EventArgs e)
         {
             this.x = 0; 
             this.y = 0;
@@ -221,28 +281,12 @@ namespace MandelbrotIMP
             };
             linGrBrush.InterpolationColors = blend;
 
-            // https://docs.microsoft.com/en-us/dotnet/api/system.drawing.drawing2d.lineargradientbrush?view=netframework-4.8
-            //             new Point(0, 0),
-            //             new Point(200, 0),
-            //             Color.FromArgb(255, 255, 0, 0), 
-            //             Color.FromArgb(255, 0, 0, 255));
-
             Graphics gfx = Graphics.FromImage(gradient);       
             gfx.FillRectangle(linGrBrush, 0, 0, 1000, 1);
 
 
         }
-        /* 
-        Bitmap gradientHolder = new Bitmap(1000,1); 
         
-        LinearGradientBrush(Color, Color, Point, Point)
-        
-        https://docs.microsoft.com/en-us/dotnet/framework/winforms/advanced/how-to-create-a-linear-gradient
-        LinearGradientBrush linGrBrush = new LinearGradientBrush(
-       new Point(0, 0),
-       new Point(200, 0),
-       Color.FromArgb(255, 255, 0, 0),   // Opaque red
-       Color.FromArgb(255, 0, 0, 255));  // Opaque blue */
 
         void ShowMandel()
         {
@@ -257,8 +301,7 @@ namespace MandelbrotIMP
                     Complex c = new Complex(a, b) / (size / 4) * scale + new Complex(this.x, this.y);
                     double iterations = Mandelbrot(c) / maxIterations;
                     iterations = Math.Sqrt(iterations);
-                    //iterations = Math.Sqrt(iterations);
-                   Color col = gradient.GetPixel((int)(iterations * gradient.Width), 0);
+                    Color col = gradient.GetPixel((int)(iterations * gradient.Width), 0);
                     buffer.SetPixel(x, y, col);
                 }
             }
