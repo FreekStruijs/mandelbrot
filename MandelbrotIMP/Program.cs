@@ -22,7 +22,7 @@ namespace MandelbrotIMP
         // double x = 0, y = 0, scale = 1; 
         double x = -1.0079296875, y = 0.3112109375, scale = 1.953125E-3;
         int maxIterations = 200;
-        int size = 500;
+        int size = 600;
 
         public Program()
         {
@@ -38,7 +38,7 @@ namespace MandelbrotIMP
             {
                 FlowDirection = FlowDirection.TopDown,
                 Location = Point.Empty,
-                Size = new Size(ClientSize.Width, 42)
+                Size = new Size(ClientSize.Width, 50)
             };
             Controls.Add(panel);
 
@@ -96,19 +96,17 @@ namespace MandelbrotIMP
             coordinatePreset = new ComboBox()
             {
                 DropDownWidth = 280,
-                Size = new Size(40, 10),
+                Size = new Size(80, 12),
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                SelectedIndex = 0,
-                DataSource = new string[] { "Basis", "coo1", "Coo2"}
+                DataSource = new string[] { "Basis", "Vuur", "Zuilen","Zigzag"}
             };
             coordinatePreset.SelectedIndexChanged += CoordinatePresetSelected;
 
             colorPreset = new ComboBox()
             {
                 DropDownWidth = 280,
-                Size = new Size(40, 10),
+                Size = new Size(80, 12),
                 DropDownStyle = ComboBoxStyle.DropDownList,
-                SelectedIndex = 0,
                 DataSource = new string[] { "Kleur 1", "Kleur 2" }
             };
             colorPreset.SelectedIndexChanged += ColorPresetSelected;
@@ -125,7 +123,9 @@ namespace MandelbrotIMP
                 labelMax,
                 inputMax,
                 buttonOk,
-                buttonReset});
+                buttonReset,
+                coordinatePreset,
+                colorPreset});
 
             pictureBox = new PictureBox()
             {
@@ -164,6 +164,11 @@ namespace MandelbrotIMP
                     x = -0.1578125;
                     y = 1.0328125;
                     scale = 1.5625E-4;
+                    break;
+                case 3:
+                    x = -0.108625;
+                    y = 0.9014428;
+                    scale = 3.8147E-8;
                     break;
             }
             ReloadTextbox();
