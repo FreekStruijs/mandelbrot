@@ -4,6 +4,8 @@ using System.Windows.Forms;
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Drawing.Drawing2D;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace MandelbrotIMP
 {
@@ -147,7 +149,7 @@ namespace MandelbrotIMP
         {
             // coordinatePreset
             // Wil liever een struct, waar naam, x, y en scale in staat die dan boven aan gedeclareerd kunnen worden.
-            // Misschien opslan als XML bestand ofzo? 
+            // Misschien opslaan als XML bestand ofzo? 
             switch (coordinatePreset.SelectedIndex)
             {
                 case 0:
@@ -220,8 +222,6 @@ namespace MandelbrotIMP
             if (int.TryParse(inputMax.Text, out int max))
                 maxIterations = max;
 
-
-            ReloadTextbox();
             ShowMandel();
         }
 
@@ -230,18 +230,15 @@ namespace MandelbrotIMP
             if (e.KeyCode == Keys.Enter)
             {
                 OkClick(null, null);
-
-                // Moet dit hier ook staan als het ook vanuit OKClick wordt aangeroepen? 
-                ShowMandel();
             }
         }
 
         private void ResetValues(object sender, EventArgs e)
         {
-            this.x = 0; 
-            this.y = 0;
-            this.scale = 1.0;
-            this.maxIterations = 300;
+            x = 0; 
+            y = 0;
+            scale = 1.0;
+            maxIterations = 300;
             ReloadTextbox();
             ShowMandel();
         }
@@ -291,10 +288,18 @@ namespace MandelbrotIMP
 
 
         }
+
+        void testje()
+        {
+           // Task mandelTask = new Task();
+        }
         
 
         void ShowMandel()
         {
+            ShowMultiThreaded();
+            return;
+
             int width = buffer.Width;
             int height = buffer.Height;
             for (int y = 0; y < height; y++)
@@ -314,6 +319,50 @@ namespace MandelbrotIMP
             pictureBox.Refresh();
         }
 
+        void ShowMultiThreaded()
+        {
+            int activeThreads = 0;
+            Action<object> threadStart = obj => ProcessRow(ref activeThreads, obj, y, buffer.Width, buffer.Height);
+            ParameterizedThreadStart pts = new ParameterizedThreadStart(threadStart);
+
+            Thread[] threads = new Thread[buffer.Height];
+            byte[][] bmp = new byte[buffer.Height][];
+            for(int y = 0; y < buffer.Height; y++)
+            {
+                activeThreads++;
+                bmp[y] = new byte[buffer.Width * 3];
+                threads[y] = new Thread(pts);
+                threads[y].Start(bmp[y]);
+            }
+            while(activeThreads > 0)
+            {
+                Console.WriteLine("Waiting");
+                Application.DoEvents();
+            }
+            BitmapData bmpData = buffer.LockBits(new Rectangle(0, 0, buffer.Width, buffer.Height), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+            for (int y = 0; y < buffer.Height; y++)
+            {
+                System.Runtime.InteropServices.Marshal.Copy(bmp[y], y * buffer.Width * 3, bmpData.Scan0, bmp[y].Length);
+            }
+            buffer.UnlockBits(bmpData);
+        }
+
+        void ProcessRow(ref int activeThreads, object obj, int y, int width, int height)
+        {
+            byte[] bmp = obj as byte[];
+            for(int x = 0; x < width; x++)
+            {
+                double a = x - width / 2;
+                double b = y - height / 2;
+                Complex c = new Complex(a, b) / (size / 4) * scale + new Complex(this.x, this.y);
+                double iterations = Mandelbrot(c) / maxIterations;
+                bmp[x * 3 + 0] = (byte)(iterations * 255);
+                bmp[x * 3 + 1] = (byte)(iterations * 255);
+                bmp[x * 3 + 2] = (byte)(iterations * 255);
+            }
+            activeThreads--;
+        }
+
         double Mandelbrot(Complex c)
         {
             Complex z = new Complex(0, 0);
@@ -326,13 +375,11 @@ namespace MandelbrotIMP
                 double mag = z.Magnitude;
                 if(mag > 2)
                 {
+                    // http://math.unipa.it/~grim/Jbarrallo.PDF
                     return Math.Max(0, it + 1 - Math.Log(Math.Log(mag, 2)));
                 }
                 it++;
             } while (it < itToDo);
-            // http://www.iquilezles.org/www/articles/mset_smooth/mset_smooth.htm
-            // https://www.codingame.com/playgrounds/2358/how-to-plot-the-mandelbrot-set/adding-some-colors
-            // http://csharphelper.com/blog/2014/07/draw-a-mandelbrot-set-fractal-with-smoothly-shaded-colors-in-c/
             
             return it - 1;
         }
@@ -342,4 +389,5 @@ namespace MandelbrotIMP
             Application.Run(new Program());
         }
     }
+
 }
