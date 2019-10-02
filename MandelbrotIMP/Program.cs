@@ -29,8 +29,6 @@ namespace MandelbrotIMP
             ResizeEnd += OnResize;
             MaximizeBox = false;
             
-
-
             FlowLayoutPanel panel = new FlowLayoutPanel()
             {
                 FlowDirection = FlowDirection.TopDown,
