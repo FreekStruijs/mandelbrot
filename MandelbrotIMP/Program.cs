@@ -291,9 +291,53 @@ namespace MandelbrotIMP
 
         void testje()
         {
-           // Task mandelTask = new Task();
+            Task[] tasks = new Task[buffer.Height];
+            byte[][] bmp = new byte[buffer.Height][]; // Array van byte arrays
+
+            for (int i= 0; i < buffer.Height; i++)
+            {
+                bmp[i] = new byte[buffer.Width * 3]; // Maak array aan van bytes * 3, vanwege RGB
+                                                     // StartNew verwacht een action 
+                // Is overbodig aangezien het direct in Task.Factory.StartNew wordt aangeroepen. 
+                Action<object> taskStart = obj =>
+                {
+                    ProcessRowTest(bmp[i], i, buffer.Width, buffer.Height);
+                };
+
+                // tasks[i] = Task.Factory.StartNew(taskStart); // Dit werkt niet, snap niet waarom
+                // Kennelijk oud, onderstaand is beter: tasks[i] = Task.Factory.StartNew( () => ProcessRowTest(bmp[i], i, buffer.Width, buffer.Height));
+                tasks[i] = Task.Run( () => ProcessRowTest(bmp[i], i, buffer.Width, buffer.Height));
+
+            }
+
+            Task.WaitAll(tasks);
+            Console.WriteLine("All done");
+
+            BitmapData bmpData = buffer.LockBits(new Rectangle(0, 0, buffer.Width, buffer.Height), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+            for (int y = 0; y < buffer.Height; y++)
+            {
+                System.Runtime.InteropServices.Marshal.Copy(bmp[y], y * buffer.Width * 3, bmpData.Scan0, bmp[y].Length);
+            }
+            buffer.UnlockBits(bmpData);
+
         }
-        
+
+        void ProcessRowTest(object obj, int y, int width, int height) 
+            // Je geeft hem een byte array mee, dat heb ik volgens mij nu ook gedaan. 
+        {
+            byte[] bmp = obj as byte[];
+            for (int x = 0; x < width; x++)
+            {
+                double a = x - width / 2;
+                double b = y - height / 2; 
+                Complex c = new Complex(a, b) / (size / 4) * scale + new Complex(this.x, this.y);
+                double iterations = Mandelbrot(c) / maxIterations;
+                bmp[x * 3 + 0] = (byte)(iterations * 255);
+                bmp[x * 3 + 1] = (byte)(iterations * 255);
+                bmp[x * 3 + 2] = (byte)(iterations * 255);
+            }
+        }
+
 
         void ShowMandel()
         {
@@ -322,7 +366,7 @@ namespace MandelbrotIMP
         void ShowMultiThreaded()
         {
             int activeThreads = 0;
-            Action<object> threadStart = obj => ProcessRow(ref activeThreads, obj, y, buffer.Width, buffer.Height);
+            Action<object> threadStart = obj => ProcessRow(ref activeThreads, obj, y, buffer.Width, buffer.Height); // volgens mij pakt hij hier dus de globale variabele y
             ParameterizedThreadStart pts = new ParameterizedThreadStart(threadStart);
 
             Thread[] threads = new Thread[buffer.Height];
