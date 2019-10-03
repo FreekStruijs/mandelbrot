@@ -20,7 +20,7 @@ namespace MandelbrotIMP
         ComboBox coordinatePreset, colorPreset;
 
         Bitmap palette = new Bitmap("gradient.png");
-        Bitmap gradient;
+        Color[] gradient;
         // double x = 0, y = 0, scale = 1; 
         double x = -1.0079296875, y = 0.3112109375, scale = 1.953125E-3;
         int maxIterations = 200;
@@ -252,7 +252,8 @@ namespace MandelbrotIMP
         }
 
         private void Kleurtjes() {
-            gradient = new Bitmap(1000, 1);
+            Bitmap gradientBmp = new Bitmap(1000, 1);
+
             LinearGradientBrush linGrBrush = new LinearGradientBrush(
                 new Point(0, 0),
                 new Point(500, 0),
@@ -283,9 +284,11 @@ namespace MandelbrotIMP
             };
             linGrBrush.InterpolationColors = blend;
 
-            Graphics gfx = Graphics.FromImage(gradient);       
+            Graphics gfx = Graphics.FromImage(gradientBmp);       
             gfx.FillRectangle(linGrBrush, 0, 0, 1000, 1);
-
+            gradient = new Color[gradientBmp.Width];
+            for (int i = 0; i < gradientBmp.Width; i++)
+                gradient[i] = gradientBmp.GetPixel(i, 0);
 
         }
 
@@ -322,79 +325,11 @@ namespace MandelbrotIMP
 
         }
 
-        void ProcessRowTest(object obj, int y, int width, int height) 
-            // Je geeft hem een byte array mee, dat heb ik volgens mij nu ook gedaan. 
+        void ProcessRowTest(object obj, int y, int width, int height)
+        // Je geeft hem een byte array mee, dat heb ik volgens mij nu ook gedaan. 
         {
             byte[] bmp = obj as byte[];
             for (int x = 0; x < width; x++)
-            {
-                double a = x - width / 2;
-                double b = y - height / 2; 
-                Complex c = new Complex(a, b) / (size / 4) * scale + new Complex(this.x, this.y);
-                double iterations = Mandelbrot(c) / maxIterations;
-                bmp[x * 3 + 0] = (byte)(iterations * 255);
-                bmp[x * 3 + 1] = (byte)(iterations * 255);
-                bmp[x * 3 + 2] = (byte)(iterations * 255);
-            }
-        }
-
-
-        void ShowMandel()
-        {
-            ShowMultiThreaded();
-            return;
-
-            int width = buffer.Width;
-            int height = buffer.Height;
-            for (int y = 0; y < height; y++)
-            {
-                for (int x = 0; x < width; x++)
-                {
-                    double a = x - width / 2;
-                    double b = y - height / 2;
-                    Complex c = new Complex(a, b) / (size / 4) * scale + new Complex(this.x, this.y);
-                    double iterations = Mandelbrot(c) / maxIterations;
-                    iterations = Math.Sqrt(iterations);
-                    Color col = gradient.GetPixel((int)(iterations * gradient.Width), 0);
-                    buffer.SetPixel(x, y, col);
-                }
-            }
-
-            pictureBox.Refresh();
-        }
-
-        void ShowMultiThreaded()
-        {
-            int activeThreads = 0;
-            Action<object> threadStart = obj => ProcessRow(ref activeThreads, obj, y, buffer.Width, buffer.Height); // volgens mij pakt hij hier dus de globale variabele y
-            ParameterizedThreadStart pts = new ParameterizedThreadStart(threadStart);
-
-            Thread[] threads = new Thread[buffer.Height];
-            byte[][] bmp = new byte[buffer.Height][];
-            for(int y = 0; y < buffer.Height; y++)
-            {
-                activeThreads++;
-                bmp[y] = new byte[buffer.Width * 3];
-                threads[y] = new Thread(pts);
-                threads[y].Start(bmp[y]);
-            }
-            while(activeThreads > 0)
-            {
-                Console.WriteLine("Waiting");
-                Application.DoEvents();
-            }
-            BitmapData bmpData = buffer.LockBits(new Rectangle(0, 0, buffer.Width, buffer.Height), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
-            for (int y = 0; y < buffer.Height; y++)
-            {
-                System.Runtime.InteropServices.Marshal.Copy(bmp[y], y * buffer.Width * 3, bmpData.Scan0, bmp[y].Length);
-            }
-            buffer.UnlockBits(bmpData);
-        }
-
-        void ProcessRow(ref int activeThreads, object obj, int y, int width, int height)
-        {
-            byte[] bmp = obj as byte[];
-            for(int x = 0; x < width; x++)
             {
                 double a = x - width / 2;
                 double b = y - height / 2;
@@ -404,7 +339,46 @@ namespace MandelbrotIMP
                 bmp[x * 3 + 1] = (byte)(iterations * 255);
                 bmp[x * 3 + 2] = (byte)(iterations * 255);
             }
-            activeThreads--;
+        }
+
+        void ShowMandel()
+        {
+            // Array om de tasks in op te slaan
+            Task<byte[]>[] tasks = new Task<byte[]>[buffer.Height];
+
+            for(int y = 0; y < buffer.Height; y++)
+            {
+                // Creeer voor elke rij pixel een task en gooi 'm in de array
+                tasks[y] = ProcessRow(y, buffer.Width, buffer.Height);
+            }
+            // Wacht tot alle tasks klaar zijn
+            Task.WaitAll(tasks);
+            BitmapData bmpData = buffer.LockBits(new Rectangle(0, 0, buffer.Width, buffer.Height), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+            for (int y = 0; y < buffer.Height; y++)
+            {
+                // Kopieer de RGB data van elke task naar de juiste rij in de bitmap
+                byte[] rgb = tasks[y].Result;
+                System.Runtime.InteropServices.Marshal.Copy(rgb, 0, bmpData.Scan0 + y * buffer.Width * 3, rgb.Length);
+            }
+            buffer.UnlockBits(bmpData);
+            pictureBox.Refresh();
+        }
+
+        async Task<byte[]> ProcessRow(int y, int width, int height)
+        {
+            byte[] bmp = new byte[width * 3];
+            for (int x = 0; x < width; x++)
+            {
+                double a = x - width / 2;
+                double b = y - height / 2;
+                Complex c = new Complex(a, b) / (size * 0.25) * scale + new Complex(this.x, this.y);
+                double iterations = Mandelbrot(c) / maxIterations;
+                Color color = gradient[(int)(iterations * gradient.Length)];
+                bmp[x * 3 + 0] = color.R;
+                bmp[x * 3 + 1] = color.G;
+                bmp[x * 3 + 2] = color.B;
+            }
+            return bmp;
         }
 
         double Mandelbrot(Complex c)
