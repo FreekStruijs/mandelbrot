@@ -14,14 +14,12 @@ namespace MandelbrotIMP
         PictureBox pictureBox;
         Bitmap buffer;
 
-        // Waarom wel voor TextBox, maar niet voor Labels en Buttons? 
         TextBox inputX, inputY, inputScale, inputMax;
 
         ComboBox coordinatePreset, colorPreset;
 
-        Bitmap palette = new Bitmap("gradient.png");
         Color[] gradient;
-        // double x = 0, y = 0, scale = 1; 
+
         double x = -1.0079296875, y = 0.3112109375, scale = 1.953125E-3;
         int maxIterations = 200;
         int size = 600;
@@ -139,9 +137,9 @@ namespace MandelbrotIMP
 
             Controls.Add(pictureBox);
 
-            Kleurtjes();
+            InitColors();
 
-            ReloadTextbox();
+            ReloadTextboxes();
             ShowMandel();
         }
 
@@ -173,7 +171,7 @@ namespace MandelbrotIMP
                     scale = 3.8147E-8;
                     break;
             }
-            ReloadTextbox();
+            ReloadTextboxes();
             ShowMandel();
         }
 
@@ -181,15 +179,15 @@ namespace MandelbrotIMP
         {
             // colorPreset
 
-            ReloadTextbox();
+            ReloadTextboxes();
             ShowMandel();
         }
 
         private void OnResize(object sender, EventArgs e)
         {
             size = Math.Min(ClientSize.Width, ClientSize.Height);
-            buffer = new Bitmap(ClientSize.Width, ClientSize.Height);
             pictureBox.Size = new Size(ClientSize.Width, ClientSize.Height - 42);
+            buffer = new Bitmap(pictureBox.Width, pictureBox.Height);
             pictureBox.Image = buffer;
             ShowMandel();
         }
@@ -204,7 +202,7 @@ namespace MandelbrotIMP
             else
                 scale *= 2;
 
-            ReloadTextbox();
+            ReloadTextboxes();
             ShowMandel();
         }
 
@@ -239,11 +237,11 @@ namespace MandelbrotIMP
             y = 0;
             scale = 1.0;
             maxIterations = 300;
-            ReloadTextbox();
+            ReloadTextboxes();
             ShowMandel();
         }
 
-        private void ReloadTextbox() 
+        private void ReloadTextboxes() 
         {
             inputX.Text = x.ToString();
             inputY.Text = y.ToString();
@@ -251,7 +249,9 @@ namespace MandelbrotIMP
             inputMax.Text = maxIterations.ToString();
         }
 
-        private void Kleurtjes() {
+        private void InitColors() {
+            // In deze functie creeren we een lookup-array voor de kleuroverloop
+            // TODO: Meerdere gradients maken
             Bitmap gradientBmp = new Bitmap(1000, 1);
 
             LinearGradientBrush linGrBrush = new LinearGradientBrush(
@@ -291,7 +291,7 @@ namespace MandelbrotIMP
                 gradient[i] = gradientBmp.GetPixel(i, 0);
 
         }
-
+        // MAG WEG
         void testje()
         {
             Task[] tasks = new Task[buffer.Height];
@@ -324,7 +324,7 @@ namespace MandelbrotIMP
             buffer.UnlockBits(bmpData);
 
         }
-
+        // MAG WEG
         void ProcessRowTest(object obj, int y, int width, int height)
         // Je geeft hem een byte array mee, dat heb ik volgens mij nu ook gedaan. 
         {
@@ -349,30 +349,34 @@ namespace MandelbrotIMP
             for(int y = 0; y < buffer.Height; y++)
             {
                 // Creeer voor elke rij pixel een task en gooi 'm in de array
-                tasks[y] = ProcessRow(y, buffer.Width, buffer.Height);
+                tasks[y] = ProcessRow(y);
             }
             // Wacht tot alle tasks klaar zijn
             Task.WaitAll(tasks);
+            // Lock te hele bitmap zodat we rechtstreeks de kleurdata kunnen aanpassen. Sneller dan SetPixel() herhaaldelijk aanroepen
             BitmapData bmpData = buffer.LockBits(new Rectangle(0, 0, buffer.Width, buffer.Height), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
             for (int y = 0; y < buffer.Height; y++)
             {
-                // Kopieer de RGB data van elke task naar de juiste rij in de bitmap
                 byte[] rgb = tasks[y].Result;
+                // Kopieer de RGB data van elke task naar de juiste rij in de bitmap met wat pointer aritmathic
                 System.Runtime.InteropServices.Marshal.Copy(rgb, 0, bmpData.Scan0 + y * buffer.Width * 3, rgb.Length);
             }
             buffer.UnlockBits(bmpData);
             pictureBox.Refresh();
         }
 
-        async Task<byte[]> ProcessRow(int y, int width, int height)
+        async Task<byte[]> ProcessRow(int y)
         {
-            byte[] bmp = new byte[width * 3];
-            for (int x = 0; x < width; x++)
+            // Functie om één rij van de mandelbrot te renderen. Deze functie loopt asynchoon en geeft een byte array
+            // met RGB waarden terug die later in de kleurdata van de bitmap geplaatst kan worden
+            byte[] bmp = new byte[buffer.Width * 3];
+            for (int x = 0; x < buffer.Width; x++)
             {
-                double a = x - width / 2;
-                double b = y - height / 2;
+                double a = x - buffer.Width / 2;
+                double b = y - buffer.Height / 2;
                 Complex c = new Complex(a, b) / (size * 0.25) * scale + new Complex(this.x, this.y);
                 double iterations = Mandelbrot(c) / maxIterations;
+
                 Color color = gradient[(int)(iterations * gradient.Length)];
                 bmp[x * 3 + 0] = color.R;
                 bmp[x * 3 + 1] = color.G;
@@ -384,22 +388,22 @@ namespace MandelbrotIMP
         double Mandelbrot(Complex c)
         {
             Complex z = new Complex(0, 0);
-            int it = 0;
-            int itToDo = maxIterations;
-            do
-            {
+            for(int it = 0; it < maxIterations; it++)
+            { 
                 // f(z) = z^2 + c
                 z = z * z + c;
                 double mag = z.Magnitude;
                 if(mag > 2)
                 {
-                    // http://math.unipa.it/~grim/Jbarrallo.PDF
+                // We returnen niet alleen het aantal iteraties als heel getal, maar ook een benadering van
+                // het stuk achter de komma zodat onze kleuren overvloeien ipv trapsgewijs gaan.
+                // 1 - log(log2(m)) bron: http://math.unipa.it/~grim/Jbarrallo.PDF
                     return Math.Max(0, it + 1 - Math.Log(Math.Log(mag, 2)));
                 }
                 it++;
-            } while (it < itToDo);
+            }
             
-            return it - 1;
+            return maxIterations - 1;
         }
 
         static void Main(string[] args)
