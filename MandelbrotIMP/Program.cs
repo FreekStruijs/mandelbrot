@@ -345,11 +345,13 @@ namespace MandelbrotIMP
         {
             // Array om de tasks in op te slaan
             Task<byte[]>[] tasks = new Task<byte[]>[buffer.Height];
-
-            for(int y = 0; y < buffer.Height; y++)
+            int width = buffer.Width;
+            int height = buffer.Height;
+            for(int y = 0; y < height; y++)
             {
-                // Creeer voor elke rij pixel een task en gooi 'm in de array
-                tasks[y] = ProcessRow(y);
+                int col = y;
+                // Creeer voor elke rij pixels een task en gooi 'm in de array
+                tasks[y] = Task.Run(() => ProcessRow(col, width, height));
             }
             // Wacht tot alle tasks klaar zijn
             Task.WaitAll(tasks);
@@ -365,15 +367,15 @@ namespace MandelbrotIMP
             pictureBox.Refresh();
         }
 
-        async Task<byte[]> ProcessRow(int y)
+        byte[] ProcessRow(int y, int w, int h)
         {
             // Functie om één rij van de mandelbrot te renderen. Deze functie loopt asynchoon en geeft een byte array
             // met RGB waarden terug die later in de kleurdata van de bitmap geplaatst kan worden
-            byte[] bmp = new byte[buffer.Width * 3];
-            for (int x = 0; x < buffer.Width; x++)
+            byte[] bmp = new byte[w * 3];
+            for (int x = 0; x < w; x++)
             {
-                double a = x - buffer.Width / 2;
-                double b = y - buffer.Height / 2;
+                double a = x - w / 2;
+                double b = y - h / 2;
                 Complex c = new Complex(a, b) / (size * 0.25) * scale + new Complex(this.x, this.y);
                 double iterations = Mandelbrot(c) / maxIterations;
 
@@ -382,6 +384,7 @@ namespace MandelbrotIMP
                 bmp[x * 3 + 1] = color.G;
                 bmp[x * 3 + 2] = color.B;
             }
+
             return bmp;
         }
 
