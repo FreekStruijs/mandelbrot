@@ -27,6 +27,10 @@ namespace MandelbrotIMP
         int size = 800;
         int width, height;
 
+        bool dragging;
+        Complex dragPos;
+        Point dragStart;
+
         string[] coordPresetNames = new string[] 
         {
             "Basis",
@@ -112,7 +116,7 @@ namespace MandelbrotIMP
             };
             Label labelPalettePreset = new Label()
             {
-                Text = "Pallet",
+                Text = "Palet",
                 Size = new Size(60, 14)
             };
             Label labelColorModePreset = new Label()
@@ -182,7 +186,10 @@ namespace MandelbrotIMP
 
             pictureBox = new PictureBox();
             pictureBox.Location = new Point(0, panel.Height);
-            pictureBox.MouseClick += ClickFocus;
+
+            pictureBox.MouseDown += OnMouseDown;
+            pictureBox.MouseMove += OnMouseMove;
+            pictureBox.MouseUp += OnMouseUp;
 
             panel.Controls.AddRange(new Control[] {labelX,
                 inputX,
@@ -207,6 +214,39 @@ namespace MandelbrotIMP
 
             ReloadTextboxes();
             OnResize(null, null);
+        }
+
+        private void OnMouseDown(object sender, MouseEventArgs e)
+        {
+            dragStart = e.Location;
+            dragPos = PixelToComplex(e.X, e.Y);
+            dragging = true;
+        }
+        private void OnMouseMove(object sender, MouseEventArgs e)
+        {
+            if (!dragging) return;
+            focus -= PixelToComplex(e.X, e.Y) - dragPos;
+            dragPos = PixelToComplex(e.X, e.Y);
+
+            ShowMandel();
+        }
+        private void OnMouseUp(object sender, MouseEventArgs e)
+        {
+            dragging = false;
+
+            if(Math.Abs(e.X - dragStart.X) + Math.Abs(e.Y - dragStart.Y) < 10)
+            {
+                // Interpreteer het als klik om te zoomen als de muis bijna niet is bewogen
+                focus = PixelToComplex(e.X, e.Y);
+
+                if (e.Button == MouseButtons.Left)
+                    scale *= 0.5;
+                else
+                    scale *= 2;
+                ShowMandel();
+
+            }
+            ReloadTextboxes();
         }
 
         private void ColorModePresetSelected(object sender, EventArgs e)
@@ -239,19 +279,6 @@ namespace MandelbrotIMP
             size = Math.Min(width, height);
             pictureBox.Image = buffer;
             
-            ShowMandel();
-        }
-
-        private void ClickFocus(object sender, MouseEventArgs e)
-        {
-            focus = PixelToComplex(e.X, e.Y);
-
-            if (e.Button == MouseButtons.Left)
-                scale *= 0.5;
-            else
-                scale *= 2;
-
-            ReloadTextboxes();
             ShowMandel();
         }
 
