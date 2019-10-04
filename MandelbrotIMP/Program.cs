@@ -26,7 +26,7 @@ namespace MandelbrotIMP
         double scale = 1.953125E-3;
         Complex focus = new Complex(-1.0079296875, 0.3112109375);
         int maxIterations = 500;
-        int size = 700;
+        int size = 800;
         int width, height;
 
         string[] coordPresetNames = new string[] 
@@ -65,7 +65,7 @@ namespace MandelbrotIMP
         };
         string[] colorModePresetNames = new string[]
         {
-            "Smooth", "Modulo"
+            "Smooth", "Simpel", "Modulo", "Gemengd"
         };
 
         public Program()
@@ -102,8 +102,23 @@ namespace MandelbrotIMP
             };
             Label labelMax = new Label()
             {
-                Text = "Max",
-                Size = new Size(30, 14),
+                Text = "Iteraties",
+                Size = new Size(60, 14),
+            };
+            Label labelCoordPreset = new Label()
+            {
+                Text = "Locatie",
+                Size = new Size(60, 14)
+            };
+            Label labelPalettePreset = new Label()
+            {
+                Text = "Pallet",
+                Size = new Size(60, 14)
+            };
+            Label labelColorModePreset = new Label()
+            {
+                Text = "Kleurmode",
+                Size = new Size(60, 14)
             };
 
             // Buttons
@@ -137,7 +152,7 @@ namespace MandelbrotIMP
             // Combobox
             coordinatePreset = new ComboBox()
             {
-                DropDownWidth = 280,
+                DropDownWidth = 120,
                 Size = new Size(80, 12),
                 DropDownStyle = ComboBoxStyle.DropDownList,
             };
@@ -147,7 +162,7 @@ namespace MandelbrotIMP
 
             palettePreset = new ComboBox()
             {
-                DropDownWidth = 280,
+                DropDownWidth = 120,
                 Size = new Size(80, 12),
                 DropDownStyle = ComboBoxStyle.DropDownList,
             };
@@ -157,7 +172,7 @@ namespace MandelbrotIMP
 
             colorModePreset = new ComboBox()
             {
-                DropDownWidth = 280,
+                DropDownWidth = 120,
                 Size = new Size(80, 12),
                 DropDownStyle = ComboBoxStyle.DropDownList,
             };
@@ -179,8 +194,11 @@ namespace MandelbrotIMP
                 inputMax,
                 buttonOk,
                 buttonReset,
+                labelCoordPreset,
                 coordinatePreset,
+                labelPalettePreset,
                 palettePreset,
+                labelColorModePreset,
                 colorModePreset,
                 });
             Controls.Add(pictureBox);
@@ -394,7 +412,25 @@ namespace MandelbrotIMP
                     }
                     return color;
                 case 1:
+                    iterations /= maxIterations;
+                    index = (int)(iterations * palette.Length);
+                    return palette[index];
+                case 2:
                     return palette[(int)(Math.Round(iterations) % palette.Length)];
+                case 3:
+                    // Pakt de R waarde van Smooth, G waarde van modulo, en B van simpel
+                    iterations /= maxIterations;
+                    index = (int)(iterations * palette.Length);
+                    color = palette[index];
+                    byte red = color.R, green, blue = color.B;
+                    if (index < palette.Length - 1)
+                    {
+                        Color b = palette[index + 1];
+                        double d = (iterations * palette.Length) % 1;
+                        red = (byte)(color.R * (1 - d) + b.R * d);
+                    }
+                    green = palette[(int)(iterations * palette.Length)].G;
+                    return Color.FromArgb(red, green, blue);
             }
             return Color.Black;
         }
