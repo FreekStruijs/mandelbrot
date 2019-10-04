@@ -3,54 +3,77 @@ using System.Numerics;
 using System.Windows.Forms;
 using System.Drawing;
 using System.Drawing.Imaging;
-using System.Drawing.Drawing2D;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace MandelbrotIMP
 {
-    class Program : Form
-    {
-        PictureBox pictureBox;
-        Bitmap buffer;
+    /*
+     * Imperatief programmeren - Prakticum 1
+     * Door: Max Veerboek & Freek Struijs
+     * 
+     * Bevat o.a. de volgende functies:
+     * - Wordt snel gerenderd door gebruik van Tasks voor multithreading
+     * - Naast links/rechts klikken om in/uit te zoemen, kun je ook slepen met de muis
+     * - Verschillende paletten en verschillende modi om de kleuren te sampelen van die paletten
+     * - Scherm kan dynamisch van grootte worden veranderd
+     * - Preset locaties (sommigen hebben een vrij hoge iteratie-count nodig)
+     * - Als het goed is makkelijk te begrijpen code, voorzien van comments
+     * 
+     */
 
+    class Program : Form
+    { 
+        // Controls
+        PictureBox pictureBox;
         TextBox inputX, inputY, inputScale, inputMax;
         FlowLayoutPanel panel;
         ComboBox coordinatePreset, palettePreset, colorModePreset;
 
-        Color[] palette;
-        int colorMode = 0;
+        Bitmap buffer;
 
+        // Gebruikersinstellingen 
         double scale;
         Complex focus;
         int maxIterations = 500;
+        Color[] palette;
+        int colorMode = 0;
+
+        // Schermformaat
         int size = 800;
         int width, height;
 
+        // Variabelen voor slepen
         bool dragging;
         Complex dragPos;
         Point dragStart;
 
+        // Data voor dropdown-menu's
         string[] coordPresetNames = new string[] 
         {
             "Basis",
-            "Vuur",
-            "Zuilen",
-            "Zigzag"
+            "Schuin",
+            "Tunnel",
+            "Ster",
+            "Schelp",
+            "Slierten"
         };
         Complex[] focusPresets = new Complex[]
         {
             new Complex(0, 0),
             new Complex(-1.0079296875, 0.3112109375),
-            new Complex(-0.1578125, 1.0328125),
+            new Complex(-0.979572916666666, 0.266216145833333),
+            new Complex(-0.562205729166666,-0.642822916666666),
+            new Complex(-1.25066, 0.02012),
             new Complex(-0.108625, 0.9014428),
         };
         double[] scalePresets = new double[]
         {
             1,
             1.953125E-3,
-            1.5625E-4,
-            3.8147E-8
+            0.000244140625,
+            0.0001220703125,
+            1.7E-4,
+            3.8147E-8,
         };
 
         string[] palettePresetNames = new string[]
@@ -58,6 +81,7 @@ namespace MandelbrotIMP
             "Space",
             "Zwart/Wit",
             "Magma",
+            "Natuur",
             "Oogpijn"
         };
         Color[][] palettePresets = new Color[][]
@@ -65,6 +89,7 @@ namespace MandelbrotIMP
             new Color[] {Color.White,Color.AliceBlue,Color.GreenYellow,Color.Purple,Color.Cornsilk,Color.Pink,Color.Black},
             new Color[] {Color.Black, Color.White},
             new Color[] {Color.Yellow, Color.Gold, Color.DarkGoldenrod, Color.Orange, Color.OrangeRed, Color.IndianRed, Color.Red },
+            new Color[] {Color.LemonChiffon, Color.Aqua, Color.LimeGreen, Color.RosyBrown, Color.AliceBlue, Color.DarkGreen, Color.DarkSeaGreen },
             new Color[] {Color.Red, Color.Blue}
         };
         string[] colorModePresetNames = new string[]
@@ -184,6 +209,7 @@ namespace MandelbrotIMP
             colorModePreset.SelectedIndexChanged += ColorModePresetSelected;
             colorModePreset.SelectedIndex = 0;
 
+            // Picturebox om de mandelbrot in de renderen
             pictureBox = new PictureBox();
             pictureBox.Location = new Point(0, panel.Height);
 
@@ -210,12 +236,12 @@ namespace MandelbrotIMP
                 });
             Controls.Add(pictureBox);
 
-            InitColors();
+            Load += OnResize; 
 
             ReloadTextboxes();
-            OnResize(null, null);
         }
 
+        // Event handlers
         private void OnMouseDown(object sender, MouseEventArgs e)
         {
             dragStart = e.Location;
@@ -228,7 +254,7 @@ namespace MandelbrotIMP
             focus -= PixelToComplex(e.X, e.Y) - dragPos;
             dragPos = PixelToComplex(e.X, e.Y);
 
-            ShowMandel();
+            ShowMandelbrot();
         }
         private void OnMouseUp(object sender, MouseEventArgs e)
         {
@@ -243,7 +269,7 @@ namespace MandelbrotIMP
                     scale *= 0.5;
                 else
                     scale *= 2;
-                ShowMandel();
+                ShowMandelbrot();
 
             }
             ReloadTextboxes();
@@ -252,7 +278,7 @@ namespace MandelbrotIMP
         private void ColorModePresetSelected(object sender, EventArgs e)
         {
             colorMode = colorModePreset.SelectedIndex;
-            if(buffer != null) ShowMandel();
+            if(buffer != null) ShowMandelbrot();
         }
 
         private void CoordinatePresetSelected(object sender, EventArgs e)
@@ -260,13 +286,13 @@ namespace MandelbrotIMP
             focus = focusPresets[coordinatePreset.SelectedIndex];
             scale = scalePresets[coordinatePreset.SelectedIndex];
             ReloadTextboxes();
-            if (buffer != null) ShowMandel();
+            if (buffer != null) ShowMandelbrot();
         }
 
         private void PalettePresetSelected(object sender, EventArgs e)
         {
             palette = palettePresets[palettePreset.SelectedIndex];
-            if (buffer != null) ShowMandel();
+            if (buffer != null) ShowMandelbrot();
         }
 
         private void OnResize(object sender, EventArgs e)
@@ -279,15 +305,9 @@ namespace MandelbrotIMP
             size = Math.Min(width, height);
             pictureBox.Image = buffer;
             
-            ShowMandel();
+            ShowMandelbrot();
         }
 
-        Complex PixelToComplex(int x, int y)
-        {
-            double a = x - width / 2;
-            double b = y - height / 2;
-            return new Complex(a, b) / (size * 0.25) * scale + focus;
-        }
 
         private void OkClick(object sender, EventArgs e)
         {
@@ -295,13 +315,17 @@ namespace MandelbrotIMP
             {
                 focus = new Complex(x, y);
             }
+            else MessageBox.Show("De door u ingevulde locatie is ongeldig");
 
-            if (double.TryParse(inputScale.Text, out double scale))
+            if (double.TryParse(inputScale.Text, out double scale) && scale > 0)
                 this.scale = scale;
-            if (int.TryParse(inputMax.Text, out int max))
-                maxIterations = max;
+            else MessageBox.Show("De door u ingevulde schaal is ongeldig");
 
-            ShowMandel();
+            if (int.TryParse(inputMax.Text, out int max) && max > 0)
+                maxIterations = max;
+            else MessageBox.Show("Het door u ingevulde iteratielimiet is ongeldig");
+            
+            ShowMandelbrot();
         }
 
         private void PressedKey(object sender, KeyEventArgs e)
@@ -316,9 +340,9 @@ namespace MandelbrotIMP
         {
             focus = new Complex();
             scale = 1.0;
-            maxIterations = 300;
+            maxIterations = 500;
             ReloadTextboxes();
-            ShowMandel();
+            ShowMandelbrot();
         }
 
         private void ReloadTextboxes() 
@@ -329,50 +353,16 @@ namespace MandelbrotIMP
             inputMax.Text = maxIterations.ToString();
         }
 
-        private void InitColors() {
-            // In deze functie creeren we een lookup-array voor de kleuroverloop
-            // TODO: Meerdere gradients maken
-            // Bitmap gradientBmp = new Bitmap(1000, 1);
-            // 
-            // LinearGradientBrush linGrBrush = new LinearGradientBrush(
-            //     new Point(0, 0),
-            //     new Point(500, 0),
-            //     Color.Gold,
-            //     Color.Navy
-            //     );
-            // 
-            // ColorBlend blend = new ColorBlend();
-            // blend.Colors = new Color[]
-            // {
-            //     Color.White,
-            //     Color.AliceBlue,
-            //     Color.GreenYellow,
-            //     Color.Purple,
-            //     Color.Cornsilk,
-            //     Color.Pink,
-            //     Color.Black
-            // };
-            // blend.Positions = new float[]
-            // {
-            //     0.0f,
-            //     0.1f,
-            //     0.2f,
-            //     0.3f,
-            //     0.5f,
-            //     0.75f,
-            //     1f
-            // };
-            // linGrBrush.InterpolationColors = blend;
-            // 
-            // Graphics gfx = Graphics.FromImage(gradientBmp);       
-            // gfx.FillRectangle(linGrBrush, 0, 0, 1000, 1);
-            // gradient = new Color[gradientBmp.Width];
-            // for (int i = 0; i < gradientBmp.Width; i++)
-            //     gradient[i] = gradientBmp.GetPixel(i, 0);
-
+        // Functie om scherm-coordinaten te transformeren naar mandelbrot-coordinaten, adhv de huidige x, y, scale en schermgrootte
+        Complex PixelToComplex(int x, int y)
+        {
+            double a = x - width / 2;
+            double b = y - height / 2;
+            return new Complex(a, b) / (size * 0.25) * scale + focus;
         }
 
-        void ShowMandel()
+        // Functie voor het daadwerkelijk renderen van de Mandelbrot
+        void ShowMandelbrot()
         {
             // Array om de tasks in op te slaan
             Task<byte[]>[] tasks = new Task<byte[]>[height];
@@ -385,6 +375,7 @@ namespace MandelbrotIMP
             }
             // Wacht tot alle tasks klaar zijn
             Task.WaitAll(tasks);
+            
             // Lock te hele bitmap zodat we rechtstreeks de kleurdata kunnen aanpassen. Sneller dan SetPixel() herhaaldelijk aanroepen
             BitmapData bmpData = buffer.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
             for (int y = 0; y < height; y++)
@@ -393,21 +384,23 @@ namespace MandelbrotIMP
                 // Kopieer de RGB data van elke task naar de juiste rij in de bitmap met wat pointer aritmathic
                 System.Runtime.InteropServices.Marshal.Copy(rgb, 0, bmpData.Scan0 + y * bmpData.Stride, rgb.Length);
             }
+            // Afbeelding vrijgeven en picturebox informeren dat hij is veranderd
             buffer.UnlockBits(bmpData);
             pictureBox.Refresh();
             
         }
 
+        // Functie om één rij van de mandelbrot te renderen. Deze functie loopt asynchoon en geeft een byte array
+        // met RGB waarden terug die later in de kleurdata van de bitmap geplaatst kan worden
         byte[] ProcessRow(int y)
         {
-            // Functie om één rij van de mandelbrot te renderen. Deze functie loopt asynchoon en geeft een byte array
-            // met RGB waarden terug die later in de kleurdata van de bitmap geplaatst kan worden
             byte[] bmp = new byte[width * 3];
             for (int x = 0; x < width; x++)
             {
                 Complex c = PixelToComplex(x, y);
                 double iterations = Mandelbrot(c);
                 Color color = GetColor(iterations);
+                // RGB data in de pixel array gooien. Volgorde is hier blijkbaar omgekeerd
                 bmp[x * 3 + 0] = color.B;
                 bmp[x * 3 + 1] = color.G;
                 bmp[x * 3 + 2] = color.R;
@@ -416,6 +409,7 @@ namespace MandelbrotIMP
             return bmp;
         }
 
+        // Functie om de kleur bij het mandelbrotgetal te vinden, adhv huidige kleurmodus en palet
         Color GetColor(double iterations)
         {
             switch(colorMode)
@@ -478,11 +472,11 @@ namespace MandelbrotIMP
                 }
                 it++;
             }
-            
+
             return maxIterations - 1;
         }
 
-        static void Main(string[] args)
+        static void Main()
         {
             Application.Run(new Program());
         }
