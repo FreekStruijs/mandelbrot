@@ -38,29 +38,31 @@ namespace MandelbrotIMP
         };
         Complex[] focusPresets = new Complex[]
         {
-                new Complex(0, 0),
-                new Complex(-1.0079296875, 0.3112109375),
-                new Complex(-0.1578125, 1.0328125),
-                new Complex(-0.108625, 0.9014428),
+            new Complex(0, 0),
+            new Complex(-1.0079296875, 0.3112109375),
+            new Complex(-0.1578125, 1.0328125),
+            new Complex(-0.108625, 0.9014428),
         };
         double[] scalePresets = new double[]
         {
-                1,
-                1.953125E-3,
-                1.5625E-4,
-                3.8147E-8
+            1,
+            1.953125E-3,
+            1.5625E-4,
+            3.8147E-8
         };
 
         string[] palettePresetNames = new string[]
         {
             "Space",
             "Zwart/Wit",
+            "Magma",
             "Oogpijn"
         };
         Color[][] palettePresets = new Color[][]
         {
             new Color[] {Color.White,Color.AliceBlue,Color.GreenYellow,Color.Purple,Color.Cornsilk,Color.Pink,Color.Black},
             new Color[] {Color.Black, Color.White},
+            new Color[] {Color.Yellow, Color.Gold, Color.DarkGoldenrod, Color.Orange, Color.OrangeRed, Color.IndianRed, Color.Red },
             new Color[] {Color.Red, Color.Blue}
         };
         string[] colorModePresetNames = new string[]
@@ -384,9 +386,9 @@ namespace MandelbrotIMP
                 Complex c = PixelToComplex(x, y);
                 double iterations = Mandelbrot(c);
                 Color color = GetColor(iterations);
-                bmp[x * 3 + 0] = color.R;
+                bmp[x * 3 + 0] = color.B;
                 bmp[x * 3 + 1] = color.G;
-                bmp[x * 3 + 2] = color.B;
+                bmp[x * 3 + 2] = color.R;
             }
 
             return bmp;
@@ -419,17 +421,19 @@ namespace MandelbrotIMP
                     return palette[(int)(Math.Round(iterations) % palette.Length)];
                 case 3:
                     // Pakt de R waarde van Smooth, G waarde van modulo, en B van simpel
+                    byte red, green, blue;
+                    green = palette[(int)(Math.Round(iterations) % palette.Length)].G;
                     iterations /= maxIterations;
                     index = (int)(iterations * palette.Length);
                     color = palette[index];
-                    byte red = color.R, green, blue = color.B;
+                    red = color.R;
+                    blue = color.B;
                     if (index < palette.Length - 1)
                     {
                         Color b = palette[index + 1];
                         double d = (iterations * palette.Length) % 1;
                         red = (byte)(color.R * (1 - d) + b.R * d);
                     }
-                    green = palette[(int)(iterations * palette.Length)].G;
                     return Color.FromArgb(red, green, blue);
             }
             return Color.Black;
@@ -448,7 +452,7 @@ namespace MandelbrotIMP
                 // We returnen niet alleen het aantal iteraties als heel getal, maar ook een benadering van
                 // het stuk achter de komma zodat onze kleuren overvloeien ipv trapsgewijs gaan.
                 // 1 - log(log2(m)) bron: http://math.unipa.it/~grim/Jbarrallo.PDF
-                    return Math.Max(0, it + 1 - Math.Log(Math.Log(mag, 2)));
+                    return Math.Max(0, it - Math.Log(Math.Log(mag, 2)));
                 }
                 it++;
             }
