@@ -11,8 +11,6 @@ namespace MandelbrotIMP
 {
     class Program : Form
     {
-        object renderLock = new object();
-
         PictureBox pictureBox;
         Bitmap buffer;
 
@@ -23,8 +21,8 @@ namespace MandelbrotIMP
         Color[] palette;
         int colorMode = 0;
 
-        double scale = 1.953125E-3;
-        Complex focus = new Complex(-1.0079296875, 0.3112109375);
+        double scale;
+        Complex focus;
         int maxIterations = 500;
         int size = 800;
         int width, height;
@@ -233,16 +231,14 @@ namespace MandelbrotIMP
 
         private void OnResize(object sender, EventArgs e)
         {
-            lock (renderLock)
-            {
-                width = ClientSize.Width;
-                height = ClientSize.Height - panel.Height;
+            width = ClientSize.Width;
+            height = ClientSize.Height - panel.Height;
 
-                pictureBox.Size = new Size(width, height);
-                buffer = new Bitmap(width, height, PixelFormat.Format24bppRgb);
-                size = Math.Min(width, height);
-                pictureBox.Image = buffer;
-            }
+            pictureBox.Size = new Size(width, height);
+            buffer = new Bitmap(width, height, PixelFormat.Format24bppRgb);
+            size = Math.Min(width, height);
+            pictureBox.Image = buffer;
+            
             ShowMandel();
         }
 
@@ -353,27 +349,26 @@ namespace MandelbrotIMP
         {
             // Array om de tasks in op te slaan
             Task<byte[]>[] tasks = new Task<byte[]>[height];
-            lock (renderLock)
+
+            for (int y = 0; y < height; y++)
             {
-                for (int y = 0; y < height; y++)
-                {
-                    int row = y;
-                    // Creeer voor elke rij pixels een task en gooi 'm in de array
-                    tasks[y] = Task.Run(() => ProcessRow(row));
-                }
-                // Wacht tot alle tasks klaar zijn
-                Task.WaitAll(tasks);
-                // Lock te hele bitmap zodat we rechtstreeks de kleurdata kunnen aanpassen. Sneller dan SetPixel() herhaaldelijk aanroepen
-                BitmapData bmpData = buffer.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
-                for (int y = 0; y < height; y++)
-                {
-                    byte[] rgb = tasks[y].Result;
-                    // Kopieer de RGB data van elke task naar de juiste rij in de bitmap met wat pointer aritmathic
-                    System.Runtime.InteropServices.Marshal.Copy(rgb, 0, bmpData.Scan0 + y * width * 3, rgb.Length);
-                }
-                buffer.UnlockBits(bmpData);
-                pictureBox.Refresh();
+                int row = y;
+                // Creeer voor elke rij pixels een task en gooi 'm in de array
+                tasks[y] = Task.Run(() => ProcessRow(row));
             }
+            // Wacht tot alle tasks klaar zijn
+            Task.WaitAll(tasks);
+            // Lock te hele bitmap zodat we rechtstreeks de kleurdata kunnen aanpassen. Sneller dan SetPixel() herhaaldelijk aanroepen
+            BitmapData bmpData = buffer.LockBits(new Rectangle(0, 0, width, height), ImageLockMode.WriteOnly, PixelFormat.Format24bppRgb);
+            for (int y = 0; y < height; y++)
+            {
+                byte[] rgb = tasks[y].Result;
+                // Kopieer de RGB data van elke task naar de juiste rij in de bitmap met wat pointer aritmathic
+                System.Runtime.InteropServices.Marshal.Copy(rgb, 0, bmpData.Scan0 + y * bmpData.Stride, rgb.Length);
+            }
+            buffer.UnlockBits(bmpData);
+            pictureBox.Refresh();
+            
         }
 
         byte[] ProcessRow(int y)
@@ -449,9 +444,9 @@ namespace MandelbrotIMP
                 double mag = z.Magnitude;
                 if(mag > 2)
                 {
-                // We returnen niet alleen het aantal iteraties als heel getal, maar ook een benadering van
-                // het stuk achter de komma zodat onze kleuren overvloeien ipv trapsgewijs gaan.
-                // 1 - log(log2(m)) bron: http://math.unipa.it/~grim/Jbarrallo.PDF
+                    // We returnen niet alleen het aantal iteraties als heel getal, maar ook een benadering van
+                    // het stuk achter de komma zodat onze kleuren overvloeien ipv trapsgewijs gaan.
+                    // -log(log2(m)) bron: http://math.unipa.it/~grim/Jbarrallo.PDF
                     return Math.Max(0, it - Math.Log(Math.Log(mag, 2)));
                 }
                 it++;
